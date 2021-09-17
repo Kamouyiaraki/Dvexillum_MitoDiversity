@@ -1,0 +1,45 @@
+begin mrbayes;
+
+	charset Subset1 = 2302-2373 1372-2232\3 8277-8347 1-780\3;
+	charset Subset2 = 2-780\3 5719-6806\3 1373-2232\3;
+	charset Subset3 = 7412-7414 7589-8276\3 1374-2232\3 6844-7411\3 4098-5664\3 9967-11509\3 923-1157\3 11835-12267\3 3-780\3 8738-9959\3;
+	charset Subset4 = 8414-8734\3 781-854 8415-8734\3;
+	charset Subset5 = 5718-6806\3 855-920 6842-7411\3 11699-11765 4096-5664\3 3075-3140 8736-9959\3 6807-6841;
+	charset Subset6 = 2233-2301 11633-11695 4027-4095 921-1157\3 12463-13448 7415-7482 3014-3074 1306-1306;
+	charset Subset7 = 8735-8735 12268-12268 12396-12396 922-1157\3;
+	charset Subset8 = 1158-1177;
+	charset Subset9 = 2374-3013 1178-1241 11766-11832;
+	charset Subset10 = 3141-4026\3 11510-11570 8416-8734\3 1242-1305 7483-7544;
+	charset Subset11 = 1307-1371 12336-12395 12397-12462 11632-11632 7545-7586 9960-9964 11571-11631 12269-12335 5665-5717 11833-12267\3 8348-8413;
+	charset Subset12 = 3142-4026\3 8737-9959\3 4097-5664\3 6843-7411\3;
+	charset Subset13 = 5720-6806\3 3143-4026\3;
+	charset Subset14 = 11696-11698 7587-8276\3 9965-11509\3;
+	charset Subset15 = 7588-8276\3;
+	charset Subset16 = 9966-11509\3;
+	charset Subset17 = 11834-12267\3;
+
+	partition PartitionFinder = 17:Subset1, Subset2, Subset3, Subset4, Subset5, Subset6, Subset7, Subset8, Subset9, Subset10, Subset11, Subset12, Subset13, Subset14, Subset15, Subset16, Subset17;
+	set partition=PartitionFinder;
+
+	lset applyto=(1) nst=2 rates=gamma;
+	lset applyto=(2) nst=2;
+	lset applyto=(3) nst=2;
+	lset applyto=(4) nst=1;
+	lset applyto=(5) nst=2;
+	lset applyto=(6) nst=6 rates=gamma;
+	lset applyto=(7) nst=1;
+	lset applyto=(8) nst=2;
+	lset applyto=(9) nst=1;
+	lset applyto=(10) nst=2;
+	lset applyto=(11) nst=1;
+	lset applyto=(12) nst=1;
+	lset applyto=(13) nst=6;
+	lset applyto=(14) nst=2 rates=gamma;
+	lset applyto=(15) nst=1;
+	lset applyto=(16) nst=1;
+	lset applyto=(17) nst=1;
+
+	prset applyto=(all) ratepr=variable;
+	unlink statefreq=(all) revmat=(all) shape=(all) pinvar=(all) tratio=(all);
+
+end; 
