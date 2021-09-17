@@ -1,4 +1,4 @@
-## All R Code used in Chapter 2: Characterising mitochondrial genome diversity in the invasive colonial tunicate, Didemnum vexillum (Kott 2002)
+## All R Code used in "Chapter 2: Characterising mitochondrial genome diversity in the invasive colonial tunicate, Didemnum vexillum (Kott 2002)"
 
 `DivStats.R` : is a script of customised functions used in both estimates of diversity and sliding window analyses. 
 
