@@ -21,3 +21,9 @@ Package minimum requirements:
 - seqinr *v3.45
 - stringr *v1.4.0*
 - treeio *v3.13*
+
+
+Partition information available: 
+
+- `nexus_paritions.txt` : Nexus formatted character sets of best-fit models of evolution for each identified partition
+- `mr_bayes_partition_definitions.txt` : Nexus formatted character sets of best-fit models of evolution for each identified partition for MrBayes
