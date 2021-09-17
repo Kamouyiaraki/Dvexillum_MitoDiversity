@@ -9,6 +9,8 @@ Package minimum requirements:
 - Biostrings *v2.52.0* 
 - circlize *0.4.6*
 - dplyr *v1.0.2*
+- ggplot2 *v3.0.0*
+- ggthemes *v4.2.0*
 - haplotypes *v1.1.2*
 - pegas *v0.11*   **2021 update (v1.0-1) does not function the same**
 - phylotools *v0.2.2*
