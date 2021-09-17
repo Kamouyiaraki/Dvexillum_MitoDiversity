@@ -130,7 +130,7 @@ hap.custom(fastafile = exampleFAS, indel="5th", hapdiv = T, variance=T, pops=seq
 ```
 
 
-### Example 6: I want to use the DNAbin output to plot a haplotype network using pegas
+### Example 6: I want to use the DNAbin output to plot a haplotype network using pegas (including v1.0-1) 
 
 (I still want to treat dels as a 5th base and I want haplotype diversity with specified populations)
 
