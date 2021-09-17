@@ -1,5 +1,8 @@
 ## Code used in "Chapter 4: Patterns of Didemnum vexillum haplotype diversity at the mitochondrial NAD1 marker across four sites on the west coast of Scotland."
 
+`hap.custom.R` : a custom function that uses both package `haplotypes` and `pegas` (<v1.0-1) to output a haplotype,DNAbin object that can be used to make haplotype networks using `pegas` and estimate haplotype diversity. 
+This function has been validated for further use and example usage and full function details are presented in: `hap.custom_doc.md`
+
 
 Note: to recreate the haplptype maps you will need an API Google key. 
 
