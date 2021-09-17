@@ -1,0 +1,343 @@
+#HAC re-basecalling
+"C:\Program Files\OxfordNanopore\ont-guppy-cpu\bin\guppy_basecaller.exe" --input_path C:\Users\Maraki\Desktop\F2_20200319 --recursive --save_path C:\Users\Maraki\Desktop\F2_20200319\HACbasecall --config dna_r9.4.1_450bps_hac.cfg --num_callers 5 --qscore_filtering
+		#the flag --recursive searches for all fast5 files across directories in fast basecaling output ("F2_20200319" which is split into pass and fail)  
+		#the parameter --num_callers 5 specifies the number of callers (each use 4 cpu threads by default; 5 callers = 20 threads - this took just under 6 hours for approximately 200k reads) 
+		#--qscore_filtering filters into pass and fail directories 
+		#optional: --min_qscore (the default is 7.0 = 85% accuracy, this can be increased to 8.0-9.0) 
+
+#transfer all pass files onto Bio-Linux - versions for analysis:
+		#Bio-Linux 8.0.7
+		#Linux 3.13.0-170-generic
+		#R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+		#NanoPlot 1.35.1
+        	#NanoStat 1.1.2
+        	#NanoFilt 2.8.0
+		#MinIONQC version 1.4.1
+        	#conda 4.8.3
+        	#minimap2 2.17-r941
+        	#bcftools 1.9
+        	#samtools 1.7
+        	#Python 3.6.13
+        	#Guppy - Version 4.4.2+9623c1626
+
+
+# Single sample haplotyping analysis using a single Sanger reference sequence (Experiment 1)
+
+#### F2 = flongle ID 
+#### ../FBM05_Dv1F3.fas = FASTA file with Sanger Sequence reference for sample FBM05
+#### sequencing_summary.txt = default output summary file from guppy
+#### Amplicon_testdummy.fas = FASTA with 2 bp difference + an insertion from sequence in FBM05_Dv1F3.fas		
+		
+### Diagnostic plots with MinIONQC    
+Rscript ../../../bin/MinIONQC.R -i ../sequencing_summary.txt -o ../Data_pre-processing/MinION_QC/ -f "jpeg"
+
+### NanoStat summary 
+NanoStat --fastq ./F2_HAC_pass_all.fastq --prefix F2_HAC_pass_all -n F2_hacpass_all --outdir ../Data_pre-processing/NanoStat_output/
+
+##Porechop to trim adapters
+porechop -i ./F2_HAC_pass_all.fastq --discard_middle -o ./F2_porechop_hacpass_all.fastq
+    #the flag --discard_middle removes any reads with an adapter found in the middle (i.e. chimeras) - in HAC 347/194,105 reads were discarded
+awk '{s++}END{print s/4}' F2_porechop_hacpass_all.fastq 
+    #193758 - only discards those with middle adapters
+    #Identity in this step is measured over the aligned part of the adapter, not its full length. E.g. if the last 5 bases of an adapter exactly match the first 5 bases of a read, that counts as a 100% identity match and those bases will be trimmed off. This allows Porechop to effectively trim partially present barcodes.
+### NanoStat summary 
+NanoStat --fastq  F2_porechop_hacpass_all.fastq --prefix F2_porechop_HAC_pass_all -n F2_porechop_hacpass_all --outdir ../Data_pre-processing/NanoStat_output
+
+
+
+## NanoFilt to filter reads (min 648 = 10% less than max amplicon length without primer binding sites, max = length of amplicon + primers) 
+ NanoFilt F2_porechop_hacpass_all.fastq -q 9 -l 648 --maxlength 767 --headcrop 20 --tailcrop 22 > F2_trimmed_porechop_hacpass_all.fastq
+         awk '{s++}END{print s/4}' F2_trimmed_porechop_hacpass_all.fastq
+
+
+minimap2 -ax map-ont -t 12  ../FBM05_Dv1F3.fas F2_trimmed_porechop_hacpass_all.fastq --sam-hit-only > F2_trimmed_porechop_hacpass_all.sam
+samtools view -bS -F 2308 F2_trimmed_porechop_hacpass_all.sam > F2_trimmed_porechop_hacpass_all.bam
+samtools quickcheck F2_trimmed_porechop_hacpass_all.bam
+samtools sort F2_trimmed_porechop_hacpass_all.bam -o F2_sorted_trimmed_porechop_hacpass_all.bam
+samtools index F2_sorted_trimmed_porechop_hacpass_all.bam
+samtools quickcheck F2_sorted_trimmed_porechop_hacpass_all.bam
+    samtools view -c -F 260 F2_sorted_trimmed_porechop_hacpass_all.bam
+        #121184
+bcftools mpileup -Ou -f ../FBM05_Dv1F3.fas  F2_sorted_trimmed_porechop_hacpass_all.bam | bcftools call --ploidy 1 -mv -Oz -o F2_calls.vcf.gz
+bcftools index F2_calls.vcf.gz    
+cat ../FBM05_Dv1F3.fas  | bcftools consensus F2_calls.vcf.gz > F2_haplotypes_consensus.fas
+
+
+samtools idxstats ./F2_sorted_trimmed_porechop_hacpass_all.bam > ./F2_coverage_stats.txt
+NanoStat --bam  ./F2_sorted_trimmed_porechop_hacpass_all.bam --prefix F2_sorted_trimmed_mapped_reads -n F2_sorted_trimmed_mapped_reads --outdir ../Data_pre-processing/NanoStat_output
+
+
+
+# in silico pseudorandom sampling of starting HAC reads (Experiment 1)
+
+cat F2_HAC_pass_all.fastq | seqkit sample -p 0.0001 -o F2_HAC_pass_sample00001.fastq
+	#p = proportion of reads to pseudorandomly sample
+porechop -i ./F2_HAC_pass_sub96k.fastq --discard_middle -o ./F2_porechop_sample00001.fastq
+
+NanoFilt F2_porechop_sample00001.fastq -q 9 -l 648 --maxlength 767 --headcrop 20 --tailcrop 22 > F2_trimmed_porechop_sample00001.fastq
+
+
+minimap2 -ax map-ont -t 12  ../Amplicon_haplotypes_unique.fas F2_trimmed_porechop_sample00001.fastq --sam-hit-only > F2_trimmed_porechop_sample00001.sam
+samtools view -bS -F 2308 F2_trimmed_porechop_sample00001.sam > F2_trimmed_porechop_sample00001.bam
+samtools quickcheck F2_trimmed_porechop_sample00001.bam
+samtools sort F2_trimmed_porechop_sample00001.bam -o F2_sorted_trimmed_porechop_sample00001.bam
+samtools index F2_sorted_trimmed_porechop_sample00001.bam
+samtools quickcheck F2_sorted_trimmed_porechop_sample00001.bam
+    samtools view -c -F 260 F2_sorted_trimmed_porechop_sample00001.bam
+        #72
+bcftools mpileup -Ou -f ../Amplicon_haplotypes_unique.fas  F2_sorted_trimmed_porechop_sample00001.bam | bcftools call --ploidy 1 -mv -Oz -o F2_sorted_trimmed_porechop_sample00001.vcf.gz
+bcftools index F2_sorted_trimmed_porechop_sample00001.vcf.gz    
+cat ../Amplicon_haplotypes_unique.fas  | bcftools consensus F2_sorted_trimmed_porechop_sample00001.vcf.gz > F2_sample00001_consensus.fas
+
+samtools idxstats ./F2_sorted_trimmed_porechop_sample00001.bam > ./F2_coverage_stats_sample00001.txt
+
+
+
+
+#Example test
+####test with wrong sequence p=0.0001
+minimap2 -ax map-ont -t 12  ../Amplicon_testdummy.fas F2_trimmed_porechop_sample00001.fastq --sam-hit-only > F2_trimmed_porechop_sample00001_test.sam
+samtools view -bS -F 2308 F2_trimmed_porechop_sample00001_test.sam > F2_trimmed_porechop_sample00001_test.bam
+samtools quickcheck F2_trimmed_porechop_sample00001_test.bam
+samtools sort F2_trimmed_porechop_sample00001_test.bam -o F2_sorted_trimmed_porechop_sample00001_test.bam
+samtools index F2_sorted_trimmed_porechop_sample00001_test.bam
+samtools quickcheck F2_sorted_trimmed_porechop_sample00001_test.bam
+    samtools view -c -F 260 F2_sorted_trimmed_porechop_sample00001_test.bam
+        #14
+##### Note: bcftools: mt haploid (--ploidy 1)
+bcftools mpileup -Ou -f ../Amplicon_testdummy.fas  F2_sorted_trimmed_porechop_sample00001_test.bam | bcftools call --ploidy 1 -m -Oz -o F2_sorted_trimmed_porechop_sample00001_test.vcf.gz
+bcftools index F2_sorted_trimmed_porechop_sample00001_test.vcf.gz    
+bcftools view F2_sorted_trimmed_porechop_sample00001_test.vcf.gz
+
+cat ../Amplicon_testdummy.fas  | bcftools consensus F2_sorted_trimmed_porechop_sample00001_test.vcf.gz > F2_test_call_m_consensus_testdummy.fas
+##no insertion here and back to 100% consensus accuracy even when mapping to wrong reference
+
+
+
+
+
+
+#Multiplexed sample haplotyping (Experiments 2-6)
+"C:\Program Files\OxfordNanopore\ont-guppy-cpu\bin\guppy_basecaller.exe" --input_path C:\Users\Maraki\Desktop\F4_20210429 --recursive --save_path C:\Users\Maraki\Desktop\F4_20210429\HACbasecall --config dna_r9.4.1_450bps_hac.cfg --num_callers 5 --qscore_filtering
+	#165 files to process. 
+	
+cd ./Desktop/F4_20210429/HACbasecall/pass
+cat *.fastq > ../F4_HAC_pass_all.fastq
+cd ../fail
+cat *.fastq > ../F4_HAC_fail_all.fastq
+
+
+conda list
+conda activate openpore 
+		
+cd ./Documents/F4_20210429
+awk '{s++}END{print s/4}' F4_HAC_pass_all.fastq  
+	#142,863 (q-scor>7)
+
+awk '{s++}END{print s/4}' F4_HAC_fail_all.fastq  
+	#11,890 (q-score < 7)
+
+## Diagnostic plots with MinIONQC
+cd ./Intermediate_files    
+Rscript ../../../bin/MinIONQC.R -i ../sequencing_summary.txt -o ./Data_pre-processing/MinION_QC/ -f "jpeg"
+    #requires mapping of channels (coded for MinION - 512 channels) 
+
+## Nanoplot summary plots
+NanoStat --fastq ./F4_HAC_pass_all.fastq --prefix F4_HAC_pass_all -n F4_hacpass_all --outdir ./Data_pre-processing/NanoStat_output/
+
+## Porechop to demultiplex
+        porechop -i ../F4_HAC_pass_all.fastq -b ./Demultiplexed --discard_middle
+			#--require_two_barcodes optional flag
+
+cd ./Demultiplexed    
+
+### Nanoplot summary plots
+NanoComp --fastq ./BC01.fastq ./BC02.fastq  --threads 20 --prefix F4_porechop_demultiplexed -o ../Data_pre-processing/Nanoplot_output --names bc01 bc02
+
+
+##NanoFilt
+NanoFilt BC01.fastq -q 9 -l 767 --maxlength 767 > F3_full_length_bc01.fastq
+  NanoFilt F3_full_length_bc01.fastq --headcrop 20 --tailcrop 22 > F3_full_length_trimmed_bc01.fastq
+         awk '{s++}END{print s/4}' F3_full_length_trimmed_bc01.fastq
+         ##767 = full length with primer binding sites
+         ##725 = without primer binding sites
+        #72
+ NanoFilt BC02.fastq -q 9 -l 767 --maxlength 767 > F3_full_length_bc02.fastq
+   NanoFilt F3_full_length_bc02.fastq --headcrop 20 --tailcrop 22 > F3_full_length_trimmed_bc02.fastq
+         awk '{s++}END{print s/4}' F3_full_length_trimmed_bc02.fastq
+        #232
+
+NanoPlot --fastq ./F3_full_length_trimmed_bc01.fastq --threads 20 --prefix F3_porechop_full_length_bc01 --title "F3-BC01-full-length" -o ../Data_pre-processing/Nanoplot_output
+NanoPlot --fastq ./F3_full_length_trimmed_bc02.fastq --threads 20 --prefix F3_porechop_full_lengthbc02 --title "F3-BC02-full length" -o ../Data_pre-processing/Nanoplot_output
+
+
+### plots to compare 
+NanoComp --fastq ./F3_full_length_trimmed_bc01.fastq ./F3_full_length_trimmed_bc02.fastq --threads 20 --prefix F3_porechop_full_length_demultiplexed -o ../Data_pre-processing/Nanoplot_output --names bc01 bc02
+
+### Mapping to reference sequences
+###BC01
+
+minimap2 -ax map-ont -t 12  ../FBM05_LcDv70_Dv1F3.fas F3_full_length_trimmed_bc01.fastq --sam-hit-only > F3_bothmap_full_length_trimmed_bc01.sam
+samtools view -bS -F 2308 F3_bothmap_full_length_trimmed_bc01.sam > F3_bothmap_full_length_trimmed_bc01.bam
+samtools quickcheck F3_bothmap_full_length_trimmed_bc01.bam
+samtools sort F3_bothmap_full_length_trimmed_bc01.bam -o F3_bothmap_full_length_sorted_trimmed_bc01.bam
+samtools index F3_bothmap_full_length_sorted_trimmed_bc01.bam
+samtools quickcheck F3_bothmap_full_length_sorted_trimmed_bc01.bam
+    samtools view -c -F 260 F3_bothmap_full_length_sorted_trimmed_bc01.bam
+        #72
+bcftools mpileup -Ou -f ../FBM05_LcDv70_Dv1F3.fas F3_bothmap_full_length_sorted_trimmed_bc01.bam | bcftools call -mv -Oz -o F3_bothmap_full_length_bc01_calls.vcf.gz
+bcftools index F3_bothmap_full_length_bc01_calls.vcf.gz    
+cat ../FBM05_LcDv70_Dv1F3.fas | bcftools consensus F3_bothmap_full_length_bc01_calls.vcf.gz > F3_bothmap_full_length_bc01_consensus.fas
+
+less F3_bothmap_full_length_bc01_consensus.fas
+
+samtools stats F3_bothmap_full_length_trimmed_bc01.sam --reference ../../../F2_20200319/FBM05_Dv1F3.fas -d > F3_bothmap_full_length_trimmed_bc01_mapped_stats.txt
+NanoStat --bam F3_bothmap_full_length_sorted_trimmed_bc01.bam --prefix F3_bothmap_full_length_sorted_trimmed_bc01 -n F3_bothmap_full_length_sorted_trimmed_bc01 --outdir ../Data_pre-processing/NanoPlot_output/
+
+
+
+###BC02
+
+minimap2 -ax map-ont -t 12  ../FBM05_LcDv70_Dv1F3.fas F3_full_length_trimmed_bc02.fastq --sam-hit-only > F3_bothmap_full_length_trimmed_bc02.sam
+samtools view -bS -F 2308 F3_bothmap_full_length_trimmed_bc02.sam > F3_bothmap_full_length_trimmed_bc02.bam
+samtools quickcheck F3_bothmap_full_length_trimmed_bc02.bam
+samtools sort F3_bothmap_full_length_trimmed_bc02.bam -o F3_bothmap_full_length_sorted_trimmed_bc02.bam
+samtools index F3_bothmap_full_length_sorted_trimmed_bc02.bam
+samtools quickcheck F3_bothmap_full_length_sorted_trimmed_bc02.bam
+    samtools view -c -F 260 F3_bothmap_full_length_sorted_trimmed_bc02.bam
+        #231
+bcftools mpileup -Ou -f ../FBM05_LcDv70_Dv1F3.fas F3_bothmap_full_length_sorted_trimmed_bc02.bam | bcftools call -mv -Oz -o F3_bothmap_full_length_bc02_calls.vcf.gz
+bcftools index F3_bothmap_full_length_bc02_calls.vcf.gz    
+cat ../FBM05_LcDv70_Dv1F3.fas | bcftools consensus F3_bothmap_full_length_bc02_calls.vcf.gz > F3_bothmap_full_length_bc02_consensus.fas
+
+
+samtools stats F3_bothmap_full_length_trimmed_bc02.sam --reference ../../../F2_20200319/FBM05_Dv1F3.fas -d > F3_bothmap_full_length_trimmed_bc02_mapped_stats.txt
+NanoStat --bam F3_bothmap_full_length_sorted_trimmed_bc02.bam --prefix F3_bothmap_full_length_sorted_trimmed_bc02 -n F3_bothmap_full_length_sorted_trimmed_bc02 --outdir ../Data_pre-processing/NanoPlot_output/
+
+
+
+
+# Analysis of mapping results from a multiplexed run (haplotype classification) in R (Experiments 2-4) 
+R
+
+map_bc01 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F3_20210416/Results/F3_coverage_stats_bc01_mappedto2ref.txt", header = F)
+map_bc02 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F3_20210416/Results/F3_coverage_stats_bc02_mappedto2ref.txt", header = F)
+
+map_bc01 <-map_bc01[, c(1,3)]
+map_bc02 <-map_bc02[, c(1,3)]
+
+colnames(map_bc01)<-c("Reference", "HapF")
+colnames(map_bc02)<-c("Reference", "HapA")
+
+mergedall <- Reduce(function(x,y) merge(x = x, y = y, by = "Reference"), list(map_bc01, map_bc02) ) 
+mergedall$Reference <- c("HapA", "HapF")
+
+mergedall <- mergedall[,order(colnames(mergedall))]
+
+dfsums<- rep(NA,(ncol(mergedall)-1 ))
+i<-1
+for(i in 1:(ncol(mergedall)-1) ){
+  #total
+  dfsums[i] <- sum(mergedall[,i])
+}
+
+
+
+df1<-reshape2::melt(mergedall, id.vars=c("Reference"))
+
+mergedall[,1:2] <- sweep(mergedall[,1:2], 2, dfsums, FUN = '/')
+
+df2<-reshape2::melt(mergedall, id.vars=c("Reference"))
+
+df2$Reference == df1$Reference
+df2$variable == df1$variable
+df2$raw<- df1$value
+
+library(ggplot2)
+library(ggthemes)
+exp2p1<-ggplot(df2, aes(Reference, variable, fill= value)) + 
+  geom_tile()+
+  geom_text(aes(label = raw),size = 8, family="serif") +
+  xlab("Reference Haplotype")+
+  ylab("Sample Haplotype") +
+  scale_fill_gradient(low="white", high="#238A8DFF", name = "Proportion of Reads")+
+  theme_tufte()+
+  theme(text = element_text(size=20), axis.line= element_line(size = 0.5, color = "black"))
+
+
+
+
+
+map_bc01 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F3_20210416/Results/F3_coverage_stats_bc01_mappedto2ref.txt", header = F)
+map_bc02 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F3_20210416/Results/F3_coverage_stats_bc02_mappedto2ref.txt", header = F)
+
+map_bc01 <-map_bc01[, c(1,3)]
+map_bc02 <-map_bc02[, c(1,3)]
+colnames(map_bc01)<-c("Reference", "bc01")
+colnames(map_bc02)<-c("Reference", "bc02")
+mergedall <- Reduce(function(x,y) merge(x = x, y = y, by = "Reference"), list(map_bc02, map_bc01) ) 
+rownames(mergedall)<- c("HapA", "HapF")
+colnames(mergedall)<- c("Reference", "HapA", "HapF")
+
+dm<- as.matrix(mergedall[,2:3])
+ctab<-caret::confusionMatrix(as.table(dm), mode = "everything")
+
+
+
+#Analysis of mapping results from a metabarcoding multiplexed run (Experiments 5 & 6)
+
+
+map_bc01 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F8_20210524/Results/F8_coverage_stats_bc13.txt", header = F)
+map_bc02 <-read.table("C:/Users/Maraki/Desktop/Shared_Drive_2020/D.vexillum_Ch5_flongle_haplotyping/F8_20210524/Results/F8_coverage_stats_bc14.txt", header = F)
+
+map_bc01 <-map_bc01[1:9, c(1,3)]
+map_bc02 <-map_bc02[1:9, c(1,3)]
+
+colnames(map_bc01)<-c("Reference", "bc13")
+colnames(map_bc02)<-c("Reference", "bc14")
+
+mergedall <- Reduce(function(x,y) merge(x = x, y = y, by = "Reference"), list(map_bc01, map_bc02) ) 
+mergedall[mergedall$Reference == "HapB_Dv1F2", "Reference"] <- "HapD_Dv1F2"
+
+Reference2 <- strsplit(mergedall$Reference, "_")
+mergedall$Ref2 <-sapply(Reference2, "[[",1)
+mergedall$amplicon <- sapply(Reference2, "[[",2)
+
+## subset based on each amplicon 
+dv1f3<-mergedall[mergedall$amplicon =="Dv1F3",]
+
+dfsums<- rep(NA,2)
+i<-1
+for(i in 2:3) {
+  #total
+  dfsums[i-1] <- sum(dv1f3[,i])
+}
+
+
+dt2 <- dv1f3[,2:4]
+colnames(dt2)<- c("Post-PCR", "Pre-PCR", "Reference_Hap")
+dt2 <- dt2[,order(ncol(dt2):1)]
+
+
+df_amps2<- reshape2::melt(dt2, id.vars=c("Reference_Hap"))
+
+dt2[,2:3]<-sweep(dt2[,2:3], 2, dfsums, FUN = '/')
+#dt2 <- dt2[,order(ncol(dt2):1)]
+
+
+df_amps<-reshape2::melt(dt2, id.vars=c("Reference_Hap"))
+
+df_amps$variable == df_amps2$variable
+df_amps$Reference == df_amps2$Reference
+df_amps$raw<- df_amps2$value
+
+library(ggplot2)
+library(ggthemes)
+e6p1<-ggplot(df_amps, aes(Reference_Hap, variable, fill= value)) + 
+  geom_tile()+
+  geom_text(aes(label = raw), size = 8, family="serif") +
+  xlab("Reference Haplotype")+
+  ylab("") +
+  scale_fill_gradient(low="white", high="#238A8DFF", name = "Proportion of Reads", breaks = c(0.75, 0.5, 0.25))+
+  theme_tufte()+
+  theme(text = element_text(size=20), axis.line= element_line(size = 0.5, color = "black"))
