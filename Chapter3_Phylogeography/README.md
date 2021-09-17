@@ -9,7 +9,7 @@ Package minimum requirements:
 - ape *v5.3*
 - Biostrings *v2.52.0* 
 - geosphere *v1.5-10*
-- ggplot2 *v3.0.0*
+- ggplot2 *v3.3.3*
 - ggrepel *v0.8.2*
 - ggthemes *v4.2.0*
 - ggtree *v3.0.4*
