@@ -13,7 +13,7 @@ Package minimum requirements:
 - ggrepel *v0.8.2*
 - ggthemes *v4.2.0*
 - ggtree *v3.0.4*
-- pegas *v0.11* 
+- pegas *v0.11* **2021 update (v1.0-1) does not function the same**
 - phytools *v0.2.2*
 - plotrix *v3.7-8*
 - reshape2 *v1.4.4*
