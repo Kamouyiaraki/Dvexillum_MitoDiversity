@@ -15,7 +15,7 @@ Package minimum requirements:
 - ggthemes *v4.2.0*
 - haplotypes *v1.1.2*
 - measurements *v1.4.0*
-- pegas *v0.11*   **2021 update (v1.0-1) does not function the same**
+- pegas *v0.11*   **2021 update (v1.0-1) does not function the same - this only impacts plotting the haplotype network in this case**
 - phylotools *v0.2.2*
 - purrr *v0.3.4*
 - rgdal *v1.5-18*
