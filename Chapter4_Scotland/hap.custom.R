@@ -48,7 +48,7 @@ hap.custom<- function(fastafile, indel="5th", labels=NULL, hapdiv=FALSE, pops=NU
   
   if(length(x)>1){   #total number of cells in matrix
     
-    for(i in 2:nseq)  #repeat pairwise comparison for the rest of the rows (samples)
+    for(i in 1:nseq)  #repeat pairwise comparison for the rest of the rows (samples)
     { 
       whap<-x[i,]==0      #pairwise comparison (row of matrix)
       whap[haplovec]<-FALSE   #keep only comparisons that haven't been used so far
