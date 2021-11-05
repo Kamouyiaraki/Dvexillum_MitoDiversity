@@ -74,11 +74,6 @@ There is only one potential warning message:
 if `pops=NULL`. 
 
 
-```{r source, include=FALSE}
-setwd("../Desktop")
-source("hap_cust.R")
-```
-
 ## Example use:
 
 In these examples I'm using a fake dataset: 
@@ -90,6 +85,9 @@ In these examples I'm using a fake dataset:
 
 
 ```{r exampleFAS, echo=FALSE}
+setwd("../Desktop")
+source("hap_cust.R")
+
 exampleFAS <- "hap4_pop3.fas"
 dnabinFAS<-read.dna(exampleFAS, format="fasta")
 dnabinFAS
